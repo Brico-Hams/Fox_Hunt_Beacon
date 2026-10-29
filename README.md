@@ -37,7 +37,7 @@ the RF signal.
 
 ### 1. Flash the firmware
 
-**Option A: web flasher (no tools needed):** <https://anatolbricoham.github.io/Fox_Hunt_Beacon/>
+**Option A: web flasher (no tools needed):** <https://brico-hams.github.io/Fox_Hunt_Beacon/>
 
 1. Open the page in Chrome, Edge or Opera (Web Serial is required; Firefox and
    Safari do not work).
@@ -226,7 +226,7 @@ Requirements: [PlatformIO](https://platformio.org/) (VS Code extension or
 `pip install platformio`) and a data-capable USB cable.
 
 ```sh
-git clone https://github.com/anatolbricoham/Fox_Hunt_Beacon.git
+git clone https://github.com/Brico-Hams/Fox_Hunt_Beacon.git
 cd Fox_Hunt_Beacon
 
 pio run -e esp32dev                 # build

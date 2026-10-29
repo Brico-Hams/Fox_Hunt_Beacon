@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://anatolbricoham.github.io/Fox_Hunt_Beacon/sitemap.xml
+Sitemap: https://brico-hams.github.io/Fox_Hunt_Beacon/sitemap.xml
