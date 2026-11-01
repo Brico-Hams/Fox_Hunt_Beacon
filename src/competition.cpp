@@ -16,6 +16,7 @@ constexpr uint32_t NFC_DEBOUNCE_MS = 2000;
 constexpr uint32_t MQTT_RETRY_MS = 5000;
 constexpr uint32_t WIFI_RETRY_MS = 10000;
 constexpr uint8_t MQTT_QUEUE_BATCH_SIZE = 2;
+constexpr size_t MAX_QUEUE_BYTES = 3500;
 
 MFRC522 rfid(NFC_SDA_PIN, NFC_RST_PIN);
 WiFiClient wifiClient;
@@ -104,8 +105,11 @@ String readQueuedEvents() {
 
 void saveQueuedEvents(const String &queue) {
   competitionPreferences.begin("nfcq", false);
-  competitionPreferences.putString("events", queue);
+  const size_t written = competitionPreferences.putString("events", queue);
   competitionPreferences.end();
+  if (written == 0 && !queue.isEmpty()) {
+    Serial.println(F("Failed to save offline event queue."));
+  }
 }
 
 void enqueueEvent(const String &event) {
@@ -114,6 +118,14 @@ void enqueueEvent(const String &event) {
     queue += "\n";
   }
   queue += event;
+  // Stay under the NVS string limit by dropping the oldest events.
+  while (queue.length() > MAX_QUEUE_BYTES) {
+    const int newlineIndex = queue.indexOf('\n');
+    if (newlineIndex < 0) {
+      break;
+    }
+    queue = queue.substring(newlineIndex + 1);
+  }
   saveQueuedEvents(queue);
 }
 
@@ -133,7 +145,7 @@ void beginWiFiStation() {
   if (config.wifiStationSsid.isEmpty()) {
     return;
   }
-  WiFi.mode(WIFI_AP_STA);
+  WiFi.mode(config.wifiApEnabled ? WIFI_AP_STA : WIFI_STA);
   if (WiFi.status() == WL_CONNECTED && WiFi.SSID() == config.wifiStationSsid) {
     stationConnectRequested = false;
     return;
@@ -220,7 +232,7 @@ void flushQueueToMqtt() {
       enqueueEvent(event);
       break;
     }
-    const String topic = config.mqttTopic + "/events";
+    const String topic = config.mqttTopic + "/validated";
     if (!mqttClient.publish(topic.c_str(), event.c_str())) {
       enqueueEvent(event);
       break;

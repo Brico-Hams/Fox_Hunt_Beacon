@@ -308,7 +308,12 @@ void webAdminStop() {
   server.end();
   dnsServer.stop();
   WiFi.softAPdisconnect(true);
-  WiFi.mode(WIFI_OFF);
+  // Keep the station link alive for MQTT / competition mode.
+  if (config.mqttEnabled && !config.wifiStationSsid.isEmpty()) {
+    WiFi.mode(WIFI_STA);
+  } else {
+    WiFi.mode(WIFI_OFF);
+  }
   running = false;
   Serial.println(F("Web admin AP stopped."));
 }
