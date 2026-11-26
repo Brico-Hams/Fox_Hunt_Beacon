@@ -136,7 +136,7 @@ after flashing if you want an existing beacon to adopt the current defaults.
 | `DEFAULT_BATTERY_SCALE` | Battery divider multiplier. | `2.0` |
 | `DEFAULT_LOW_BATTERY_VOLTAGE` | Voltage where TX stops. | `3.40` |
 | `DEFAULT_NFC_ENABLED` | Enables NFC tag validation. | `0` |
-| `DEFAULT_NFC_TAG_WHITELIST` | Semicolon-separated allowed NFC UIDs; empty allows any UID. | `""` |
+| `DEFAULT_NFC_TAG_WHITELIST` | Semicolon-separated allowed NFC UIDs; empty rejects all UIDs. | `""` |
 | `DEFAULT_PARTICIPANT_NAME` | Participant label included in NFC events. | `competitor` |
 | `DEFAULT_MQTT_ENABLED` | Enables MQTT event publication. | `0` |
 | `DEFAULT_MQTT_BROKER` | MQTT broker hostname. | `broker.local` |
@@ -203,7 +203,7 @@ Open Serial Monitor at 115200 baud and type commands followed by Enter.
 | `set wifi_ap_timeout <minutes>` | Auto-off the AP after this many idle minutes (0 = never). |
 | `set eco_mode on\|off` | Enable or disable display eco mode (screen off after 4 s). |
 | `set nfc on\|off` | Enable or disable NFC tag reading. |
-| `set nfc_tags <uid;uid>` | Set the allowed NFC UIDs; an empty list allows any UID. |
+| `set nfc_tags <uid;uid>` | Set the NFC allowlist; an empty list rejects every UID. Add explicit UIDs before enabling NFC validation. |
 | `set participant_name <name>` | Set the participant label sent with a validation event. |
 | `set mqtt on\|off` | Enable or disable MQTT publication. |
 | `set mqtt_broker <host>` | Set the MQTT broker hostname. |
