@@ -69,7 +69,7 @@
 // NFC and MQTT competition mode. These are disabled by default and only take
 // effect when the optional hardware is installed and enabled in the config.
 #define DEFAULT_NFC_ENABLED 0
-#define DEFAULT_NFC_TAG_WHITELIST ""
+#define DEFAULT_NFC_TAG_WHITELIST ""  // Empty allowlist rejects every NFC UID.
 #define DEFAULT_MQTT_ENABLED 0
 #define DEFAULT_MQTT_BROKER "broker.local"
 #define DEFAULT_MQTT_PORT 1883
