@@ -177,7 +177,7 @@ void dispatchReceivedFrame(const String &frame) {
       return;
     }
 
-    if (competitionPublishAuthenticatedTag(tag, player)) {
+    if (competitionPublishValidatedTag(tag, player, sender, eventId)) {
       rememberEvent(sender, eventId);
       sendEventAcknowledgement(sender, eventId);
       Serial.printf("LoRa NFC event accepted from %s: %s / %s\n",

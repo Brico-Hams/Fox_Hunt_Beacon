@@ -87,6 +87,28 @@ because those boards expose different ADC and boot-safe pins.
 8. Test into a dummy load or at the lowest practical power.
 9. Connect audio only after the PTT switching is reliable.
 
+## Competition Node Power And RF Layout
+
+For a node with RC522 and SX127x sharing SPI, keep separate chip-select lines,
+verify the pin map for the exact board revision, and confirm that both devices
+can be initialized and read reliably on the shared bus. Place local 100 nF
+ceramic and 10 µF bulk decoupling close to each module's supply pins; use a
+regulated 3.3 V rail with enough transient headroom for the ESP32 and LoRa
+transmit bursts. Do not feed module current through an undersized USB-UART
+adapter or thin jumper leads.
+
+Keep the RC522 antenna loop and LoRa antenna physically separated. Before field
+use, test tag reads and LoRa packet delivery while the beacon is transmitting,
+while Wi-Fi is active, and at the intended battery voltage. Use the exact
+regional frequency, permitted conducted power, antenna gain, and duty cycle;
+account for antenna gain when checking EIRP. The LoRa module is a data link, not
+the ARDF FM transmitter.
+
+For PTT, retain the isolated transistor/opto interface and verify that reset,
+watchdog recovery, brownout, and an unplugged ESP32 leave PTT released. Do not
+connect an unknown accessory pin directly to an ESP32 GPIO. Test into a dummy
+load or at minimum power after confirming the radio pinout and audio level.
+
 ## Cheap Radio Caveats
 
 - Some radios combine mic bias, PTT, and audio in ways that need extra

@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <DNSServer.h>
+#include <Preferences.h>
+#include <esp_system.h>
 
 #include "beacon_config.h"
 #include "beacon_runtime.h"
@@ -19,6 +21,7 @@ static bool running = false;
 static bool routesRegistered = false;
 static String apSsid;
 static String apIp = "10.0.0.8";
+static String apPassword;
 
 static volatile uint32_t lastActivityMs = 0;
 
@@ -35,6 +38,42 @@ static String stateName(int s) {
 
 static void markActivity() {
   lastActivityMs = millis();
+}
+
+static String loadOrCreateApPassword() {
+  Preferences preferences;
+  if (!preferences.begin("fh-security", false)) return "";
+
+  String password = preferences.getString("ap_password", "");
+  if (password.length() < 16) {
+    static const char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+    password = "";
+    password.reserve(20);
+    for (uint8_t i = 0; i < 20; ++i) {
+      password += alphabet[esp_random() % (sizeof(alphabet) - 1)];
+    }
+    if (preferences.putString("ap_password", password) == 0) password = "";
+  }
+  preferences.end();
+  return password;
+}
+
+static bool requireAuth(AsyncWebServerRequest *request) {
+  if (apPassword.length() < 16) {
+    request->send(503, "text/plain", "Web admin credentials are unavailable.");
+    return false;
+  }
+  if (!request->authenticate("admin", apPassword.c_str())) {
+    request->requestAuthentication("BricoHams Fox Hunt Beacon");
+    return false;
+  }
+  return true;
+}
+
+static bool requireSameOrigin(AsyncWebServerRequest *request) {
+  if (!request->hasHeader("Origin")) return false;
+  const String expected = "http://" + request->host();
+  return request->getHeader("Origin")->value() == expected;
 }
 
 // Quote a string for JSON output.
@@ -64,6 +103,7 @@ static bool isOnValue(const String &value) {
 // --- Async request handlers ---
 
 static void handleRoot(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
   AsyncWebServerResponse *response = request->beginResponse(
       200, "text/html", INDEX_HTML, INDEX_HTML_LEN);
@@ -73,6 +113,7 @@ static void handleRoot(AsyncWebServerRequest *request) {
 }
 
 static void handleStyle(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
   AsyncWebServerResponse *response = request->beginResponse(
       200, "text/css", STYLE_CSS, STYLE_CSS_LEN);
@@ -82,6 +123,7 @@ static void handleStyle(AsyncWebServerRequest *request) {
 }
 
 static void handleScript(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
   AsyncWebServerResponse *response = request->beginResponse(
       200, "text/javascript", SCRIPT_JS, SCRIPT_JS_LEN);
@@ -91,6 +133,7 @@ static void handleScript(AsyncWebServerRequest *request) {
 }
 
 static void handleGetConfig(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
   const BeaconConfig c = beaconConfigSnapshot();
   String json = "{";
@@ -143,7 +186,12 @@ static void handleGetConfig(AsyncWebServerRequest *request) {
 // configuration, so a partial POST never zeroes other settings. Values are
 // normalized and clamped exactly like the serial "set" commands.
 static void handlePostConfig(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
+  if (!requireSameOrigin(request)) {
+    request->send(403, "text/plain", "Cross-origin request rejected.");
+    return;
+  }
   if (!request->hasParam("call", true)) {
     request->send(400, "text/plain", "Missing form data");
     return;
@@ -202,30 +250,51 @@ static void handlePostConfig(AsyncWebServerRequest *request) {
 }
 
 static void handleTest(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
+  if (!requireSameOrigin(request)) {
+    request->send(403, "text/plain", "Cross-origin request rejected.");
+    return;
+  }
   beaconQueueRequest(BeaconRequest::Test);
   request->send(200, "text/plain", "Test transmission queued.");
 }
 
 static void handlePttTest(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
+  if (!requireSameOrigin(request)) {
+    request->send(403, "text/plain", "Cross-origin request rejected.");
+    return;
+  }
   beaconQueueRequest(BeaconRequest::PttTest);
   request->send(200, "text/plain", "PTT test queued (about 1.2 s).");
 }
 
 static void handleDefaults(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
+  if (!requireSameOrigin(request)) {
+    request->send(403, "text/plain", "Cross-origin request rejected.");
+    return;
+  }
   beaconQueueRequest(BeaconRequest::Defaults);
   request->send(200, "text/plain", "Defaults restored and saved.");
 }
 
 static void handleReboot(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
+  if (!requireSameOrigin(request)) {
+    request->send(403, "text/plain", "Cross-origin request rejected.");
+    return;
+  }
   request->send(200, "text/plain", "Rebooting...");
   beaconQueueRequest(BeaconRequest::Reboot);  // main loop restarts after the reply is sent
 }
 
 static void handleNotFound(AsyncWebServerRequest *request) {
+  if (!requireAuth(request)) return;
   markActivity();
   // Captive portal: redirect all unknown URLs to root.
   request->redirect("http://" + apIp + "/");
@@ -258,9 +327,18 @@ void webAdminInit(const char *apNamePrefix) {
   apSsid = String(apNamePrefix) + "-" + macSuffix;
 
   const bool useStation = config.mqttEnabled && !config.wifiStationSsid.isEmpty();
+  apPassword = loadOrCreateApPassword();
+  if (apPassword.length() < 16) {
+    Serial.println(F("Web admin disabled: could not create persistent AP credentials."));
+    return;
+  }
+
   WiFi.mode(useStation ? WIFI_AP_STA : WIFI_AP);
   WiFi.softAPConfig(IPAddress(10, 0, 0, 8), IPAddress(10, 0, 0, 8), IPAddress(255, 255, 255, 0));
-  WiFi.softAP(apSsid.c_str());
+  if (!WiFi.softAP(apSsid.c_str(), apPassword.c_str())) {
+    Serial.println(F("Web admin disabled: secure WiFi AP could not start."));
+    return;
+  }
   apIp = WiFi.softAPIP().toString();
 
   // Captive portal DNS: redirect all queries to our IP.
@@ -272,6 +350,7 @@ void webAdminInit(const char *apNamePrefix) {
   running = true;
   lastActivityMs = millis();
   Serial.printf("BricoHams Fox Hunt Beacon — Web admin AP: %s, IP: %s\n", apSsid.c_str(), apIp.c_str());
+  Serial.printf("Web admin login: username=admin password=%s (keep this private)\n", apPassword.c_str());
 }
 
 void webAdminLoop() {

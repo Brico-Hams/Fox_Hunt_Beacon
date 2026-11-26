@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
+#include <esp_system.h>
 
 #include "lora_network.h"
 
@@ -94,6 +95,18 @@ String escapeJsonString(const String &value) {
     }
   }
   return escaped;
+}
+
+String localNodeId() {
+  const uint64_t mac = ESP.getEfuseMac();
+  char id[13];
+  snprintf(id, sizeof(id), "%012llX", static_cast<unsigned long long>(mac & 0xFFFFFFFFFFFFULL));
+  return String(id);
+}
+
+uint32_t nextEventId() {
+  uint32_t id = esp_random();
+  return id == 0 ? 1 : id;
 }
 
 String readQueuedEvents() {
@@ -244,18 +257,23 @@ void flushQueueToMqtt() {
   }
 }
 
-bool publishValidatedTag(const String &tag, const String &player) {
+bool publishValidatedTag(const String &tag, const String &player,
+                         const String &nodeId, uint32_t eventId) {
   if (!config.mqttEnabled || config.mqttBroker.isEmpty()) {
     return false;
   }
 
+  const uint32_t publishedAt = millis();
   String payload = String("{") +
         "\"player\":\"" + escapeJsonString(player) + "\"," +
       "\"tag\":\"" + tag + "\"," +
       "\"status\":\"validated\"," +
       "\"device\":\"" + config.callSign + "\"," +
       "\"fox\":\"" + config.foxId + "\"," +
-      "\"timestamp\":\"" + String(millis()) + "\"}";
+      "\"nodeId\":\"" + escapeJsonString(nodeId) + "\"," +
+      "\"eventId\":" + String(eventId) + "," +
+      "\"receivedUptimeMs\":" + String(publishedAt) + "," +
+      "\"timestamp\":\"" + String(publishedAt) + "\"}";
 
   if (!mqttClient.connected()) {
     enqueueEvent(payload);
@@ -313,8 +331,9 @@ String competitionNormalizeTag(const uint8_t *uid, uint8_t uidLength) {
 bool competitionTagIsAllowed(const String &tag) {
   String whitelist = config.nfcAllowedTags;
   whitelist = serializeTagList(whitelist);
+  // Fail closed: an enabled reader without an explicit allowlist validates nobody.
   if (whitelist.isEmpty()) {
-    return true;
+    return false;
   }
   String candidate = normalizeTagListEntry(tag);
   if (candidate.isEmpty()) {
@@ -337,8 +356,9 @@ bool competitionTagIsAllowed(const String &tag) {
   return false;
 }
 
-bool competitionPublishAuthenticatedTag(const String &tag, const String &player) {
-  return publishValidatedTag(tag, player);
+bool competitionPublishValidatedTag(const String &tag, const String &player,
+                                    const String &nodeId, uint32_t eventId) {
+  return publishValidatedTag(tag, player, nodeId, eventId);
 }
 
 void competitionInit() {
@@ -412,7 +432,7 @@ void competitionLoop() {
         loraNetworkPublish("NFC", tag + ";" + config.participantName)) {
       Serial.println(F("NFC validation queued for LoRa master acknowledgement."));
     } else {
-      publishValidatedTag(tag, config.participantName);
+      publishValidatedTag(tag, config.participantName, localNodeId(), nextEventId());
     }
   } else {
     Serial.printf("NFC tag rejected: %s\n", tag.c_str());
