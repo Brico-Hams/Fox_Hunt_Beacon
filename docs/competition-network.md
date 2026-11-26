@@ -62,6 +62,9 @@ decimal `18` (`0x12`). LoRa settings are saved immediately but the radio is
 initialized at boot, so reboot after changing them. Frequency and transmit
 power must comply with local regulations and the radio module's supported band.
 
+An empty `nfc_tags` allowlist rejects every UID; configure explicit UIDs on each
+reader before enabling validation.
+
 These links are not security mechanisms: the LoRa protocol currently has CRC
 but no encryption or packet authentication, and an NFC UID can be copied. MQTT
 uses plain TCP in this firmware (TLS is not implemented). Use a trusted network
@@ -103,9 +106,16 @@ When the master receives an event, the broker receives JSON similar to:
    "status": "validated",
    "device": "EA5KAO",
    "fox": "MOE",
+   "nodeId": "A1B2C3D4E5F6",
+   "eventId": 187654321,
+   "receivedUptimeMs": 123456789,
    "timestamp": "123456789"
 }
 ```
+
+`nodeId` plus `eventId` is the stable deduplication key for MQTT consumers. Keep
+using `timestamp` as a legacy string if needed; it is the publisher's uptime,
+not UTC. `receivedUptimeMs` makes that limitation explicit.
 
 If the broker is unavailable, the master stores events in ESP32 Preferences
 and retries MQTT delivery when the broker becomes reachable.
