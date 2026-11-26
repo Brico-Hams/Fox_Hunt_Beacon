@@ -35,6 +35,10 @@ settings, plus buttons for test transmission, PTT test, restore defaults, and
 reboot. NFC tag lists and MQTT broker credentials must be configured through
 Serial Monitor or compile-time defaults. No app or internet connection is needed.
 
+The web admin is protected by WPA2 and HTTP Basic authentication. On first boot, the ESP32 generates a random 20-character AP password and stores it in NVS; it prints the SSID, IP, and `admin` login password to Serial Monitor at 115200 baud on each boot. Use that password both to join the AP and when the browser asks for the web login. Keep serial logs private. If NVS is erased to recover a lost password, all saved configuration is erased too.
+
+Every web route requires authentication. State-changing POST routes also reject requests whose `Origin` does not match the beacon web origin. The web interface uses HTTP rather than TLS, so use it only while connected directly to the beacon AP; do not bridge or expose this AP to a shared or public network.
+
 The web UI works on all ESP32 boards. Boards with OLED, TFT, or E-Ink screens
 also show status with callsign, fox ID, mode, state, timing, battery, and AP IP
 address. E-Ink refresh is slower than OLED/TFT.
